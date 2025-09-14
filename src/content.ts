@@ -6,38 +6,44 @@ let extensionValid = true;
 let menuCreated = false;
 let contextMenuUpdateTimeout: number | undefined;
 
-// Extract image URL from any element
+// Extract image URL from any element - strict mode for right-click detection
 function getImageUrlFromElement(element: HTMLElement): string | null {
   // Check for direct image element
   if (element.tagName === 'IMG') {
     return (element as HTMLImageElement).src;
   }
 
-  // Check for background images in various containers
-  if (element.closest('[role="img"]')) {
-    const imgElement = element.closest('[role="img"]') as HTMLElement;
-    const style = window.getComputedStyle(imgElement);
-    const backgroundImage = style.backgroundImage;
-    if (backgroundImage && backgroundImage !== 'none') {
-      return backgroundImage.slice(5, -2);
+  // Check if clicked element itself has background image
+  const style = window.getComputedStyle(element);
+  const backgroundImage = style.backgroundImage;
+  if (backgroundImage && backgroundImage !== 'none' && backgroundImage.includes('http')) {
+    return backgroundImage.slice(5, -2);
+  }
+
+  // Check for role="img" but only if we're close to the actual image element
+  const roleImgParent = element.closest('[role="img"]');
+  if (roleImgParent && element === roleImgParent) {
+    const parentStyle = window.getComputedStyle(roleImgParent as HTMLElement);
+    const parentBg = parentStyle.backgroundImage;
+    if (parentBg && parentBg !== 'none' && parentBg.includes('http')) {
+      return parentBg.slice(5, -2);
     }
   }
 
-  // Google Drive specific selectors
-  if (element.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe')) {
-    const container = element.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe');
-    const img = container?.querySelector('img') as HTMLImageElement | null;
-    if (img) {
-      return img.src;
-    }
-  }
+  // Check immediate parent only if it looks like an image container
+  const immediateParent = element.parentElement;
+  if (immediateParent) {
+    // Only check if parent has image-related classes or is a known image container
+    if (immediateParent.classList.contains('a-u-xb-j') ||
+        immediateParent.classList.contains('a-u-j') ||
+        immediateParent.classList.contains('a-u-xb') ||
+        immediateParent.classList.contains('Q5txwe') ||
+        immediateParent.getAttribute('role') === 'img') {
 
-  // Check parent elements for images
-  const parentWithImage = element.closest('div');
-  if (parentWithImage) {
-    const img = parentWithImage.querySelector('img') as HTMLImageElement | null;
-    if (img) {
-      return img.src;
+      const img = immediateParent.querySelector('img') as HTMLImageElement | null;
+      if (img) {
+        return img.src;
+      }
     }
   }
 
