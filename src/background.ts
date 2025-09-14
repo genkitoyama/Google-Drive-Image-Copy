@@ -8,7 +8,8 @@ function createContextMenu() {
     chrome.contextMenus.create({
       id: "copyGDriveImage",
       title: "画像をクリップボードにコピー",
-      contexts: ["all"]
+      contexts: ["all"],
+      documentUrlPatterns: ["https://drive.google.com/*"]
     }, () => {
       if (chrome.runtime.lastError) {
         console.error('Context menu creation failed:', chrome.runtime.lastError);
