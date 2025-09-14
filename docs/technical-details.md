@@ -9,9 +9,7 @@ Chrome Extension
 ├── manifest.json     # 拡張機能設定
 ├── src/
 │   ├── content.ts    # メインロジック（コンテンツスクリプト）
-│   ├── background.ts # バックグラウンドスクリプト
-│   └── popup.ts      # ポップアップUI
-├── popup.html        # ポップアップHTML
+│   └── background.ts # バックグラウンドスクリプト
 └── icons/            # 拡張機能アイコン
 ```
 

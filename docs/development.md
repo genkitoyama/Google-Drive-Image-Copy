@@ -52,13 +52,11 @@ npm run watch
 google-drive-image-copy-paste/
 ├── src/                    # TypeScriptソースコード
 │   ├── content.ts         # メインロジック
-│   ├── background.ts      # バックグラウンド処理
-│   └── popup.ts           # ポップアップUI
+│   └── background.ts      # バックグラウンド処理
 ├── dist/                  # ビルド出力（自動生成）
 ├── docs/                  # ドキュメント
 ├── icons/                 # 拡張機能アイコン
 ├── manifest.json          # 拡張機能設定
-├── popup.html            # ポップアップHTML
 ├── tsconfig.json         # TypeScript設定
 └── package.json          # プロジェクト設定
 ```
@@ -202,7 +200,6 @@ ls -la dist/
 zip -r google-drive-image-copy-v1.1.0.zip \
   manifest.json \
   dist/ \
-  popup.html \
   icons/ \
   -x "*.map"
 ```
