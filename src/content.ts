@@ -3,6 +3,100 @@
 let lastClickedImageUrl: string | null = null;
 let customMenu: HTMLElement | null = null;
 let extensionValid = true;
+let menuCreated = false;
+let contextMenuUpdateTimeout: number | undefined;
+
+// Extract image URL from any element
+function getImageUrlFromElement(element: HTMLElement): string | null {
+  // Check for direct image element
+  if (element.tagName === 'IMG') {
+    return (element as HTMLImageElement).src;
+  }
+
+  // Check for background images in various containers
+  if (element.closest('[role="img"]')) {
+    const imgElement = element.closest('[role="img"]') as HTMLElement;
+    const style = window.getComputedStyle(imgElement);
+    const backgroundImage = style.backgroundImage;
+    if (backgroundImage && backgroundImage !== 'none') {
+      return backgroundImage.slice(5, -2);
+    }
+  }
+
+  // Google Drive specific selectors
+  if (element.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe')) {
+    const container = element.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe');
+    const img = container?.querySelector('img') as HTMLImageElement | null;
+    if (img) {
+      return img.src;
+    }
+  }
+
+  // Check parent elements for images
+  const parentWithImage = element.closest('div');
+  if (parentWithImage) {
+    const img = parentWithImage.querySelector('img') as HTMLImageElement | null;
+    if (img) {
+      return img.src;
+    }
+  }
+
+  return null;
+}
+
+// Check if there are any images on the page
+function hasImagesOnPage(): boolean {
+  // Check for direct IMG elements
+  const images = document.querySelectorAll('img');
+  for (const img of images) {
+    const src = (img as HTMLImageElement).src;
+    if (src && src.includes('googleusercontent.com')) {
+      return true;
+    }
+  }
+
+  // Check for role="img" elements with background images
+  const roleImages = document.querySelectorAll('[role="img"]');
+  for (const element of roleImages) {
+    const style = window.getComputedStyle(element as HTMLElement);
+    const backgroundImage = style.backgroundImage;
+    if (backgroundImage && backgroundImage !== 'none' && backgroundImage.includes('googleusercontent.com')) {
+      return true;
+    }
+  }
+
+  // Check Google Drive specific containers
+  const driveContainers = document.querySelectorAll('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe');
+  for (const container of driveContainers) {
+    const img = container.querySelector('img') as HTMLImageElement | null;
+    if (img && img.src && img.src.includes('googleusercontent.com')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Update context menu based on image presence
+function updateContextMenu() {
+  const hasImages = hasImagesOnPage();
+
+  if (hasImages && !menuCreated) {
+    // Create menu
+    safeSendMessage({ action: 'createContextMenu' }).catch(() => {
+      // Ignore errors
+    });
+    menuCreated = true;
+    // console.log('Context menu created due to image detection');
+  } else if (!hasImages && menuCreated) {
+    // Remove menu
+    safeSendMessage({ action: 'removeContextMenu' }).catch(() => {
+      // Ignore errors
+    });
+    menuCreated = false;
+    // console.log('Context menu removed due to no images');
+  }
+}
 
 // Check if extension context is valid
 function checkExtensionContext(): boolean {
@@ -230,45 +324,9 @@ document.addEventListener('click', () => {
 
 document.addEventListener('contextmenu', (e: MouseEvent) => {
   const target = e.target as HTMLElement;
-  let imageUrl: string | null = null;
+  const imageUrl = getImageUrlFromElement(target);
 
   // console.log('Right-click detected on element:', target.tagName, target.className);
-
-  // Check for direct image element
-  if (target.tagName === 'IMG') {
-    imageUrl = (target as HTMLImageElement).src;
-    // console.log('Found IMG element with src:', imageUrl);
-  }
-  // Check for background images in various containers
-  else if (target.closest('[role="img"]')) {
-    const imgElement = target.closest('[role="img"]') as HTMLElement;
-    const style = window.getComputedStyle(imgElement);
-    const backgroundImage = style.backgroundImage;
-    if (backgroundImage && backgroundImage !== 'none') {
-      imageUrl = backgroundImage.slice(5, -2);
-      // console.log('Found role="img" element with background:', imageUrl);
-    }
-  }
-  // Google Drive specific selectors
-  else if (target.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe')) {
-    const container = target.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe');
-    const img = container?.querySelector('img') as HTMLImageElement | null;
-    if (img) {
-      imageUrl = img.src;
-      // console.log('Found image in Drive container:', imageUrl);
-    }
-  }
-  // Check parent elements for images
-  else {
-    const parentWithImage = target.closest('div');
-    if (parentWithImage) {
-      const img = parentWithImage.querySelector('img') as HTMLImageElement | null;
-      if (img) {
-        imageUrl = img.src;
-        // console.log('Found image in parent div:', imageUrl);
-      }
-    }
-  }
 
 
   if (imageUrl) {
@@ -1052,10 +1110,45 @@ function showErrorMessage(message: string): void {
   showImprovedErrorMessage(message);
 }
 
+// Initialize context menu state on page load
+function initializeContextMenu() {
+  // Wait for DOM to be ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(updateContextMenu, 1000);
+    });
+  } else {
+    setTimeout(updateContextMenu, 1000);
+  }
+
+  // Monitor DOM changes for dynamic content
+  const observer = new MutationObserver(() => {
+    // Debounce the update to avoid excessive calls
+    clearTimeout(contextMenuUpdateTimeout);
+    contextMenuUpdateTimeout = setTimeout(updateContextMenu, 500);
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src', 'style', 'class']
+  });
+}
+
+// Start monitoring
+initializeContextMenu();
+
 // Clean up when page unloads
 window.addEventListener('beforeunload', () => {
   extensionValid = false;
   if (customMenu) {
     customMenu.remove();
+  }
+  // Remove context menu when leaving page
+  if (menuCreated) {
+    safeSendMessage({ action: 'removeContextMenu' }).catch(() => {
+      // Ignore errors
+    });
   }
 });

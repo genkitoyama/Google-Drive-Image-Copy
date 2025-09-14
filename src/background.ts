@@ -2,33 +2,49 @@ let currentImageUrl: string | null = null;
 
 // console.log('Google Drive Image Copy Extension: Background script loaded');
 
-// Create context menu on install and startup
+let contextMenuCreated = false;
+
+// Create context menu dynamically
 function createContextMenu() {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: "copyGDriveImage",
-      title: "画像をクリップボードにコピー",
-      contexts: ["image"],
-      documentUrlPatterns: ["https://drive.google.com/*"]
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.error('Context menu creation failed:', chrome.runtime.lastError);
-      } else {
-        // console.log('Context menu created successfully');
-      }
-    });
+  if (contextMenuCreated) return;
+
+  chrome.contextMenus.create({
+    id: "copyGDriveImage",
+    title: "画像をクリップボードにコピー",
+    contexts: ["all"],
+    documentUrlPatterns: ["https://drive.google.com/*"]
+  }, () => {
+    if (chrome.runtime.lastError) {
+      console.error('Context menu creation failed:', chrome.runtime.lastError);
+    } else {
+      contextMenuCreated = true;
+      // console.log('Context menu created successfully');
+    }
+  });
+}
+
+// Remove context menu
+function removeContextMenu() {
+  if (!contextMenuCreated) return;
+
+  chrome.contextMenus.remove("copyGDriveImage", () => {
+    if (chrome.runtime.lastError) {
+      // console.log('Context menu removal failed:', chrome.runtime.lastError);
+    } else {
+      contextMenuCreated = false;
+      // console.log('Context menu removed successfully');
+    }
   });
 }
 
 chrome.runtime.onInstalled.addListener(() => {
   // console.log('Extension installed/updated');
-  createContextMenu();
+  // Don't create menu on startup - wait for image detection
 });
 
-// Also create on startup
 chrome.runtime.onStartup.addListener(() => {
   // console.log('Extension started');
-  createContextMenu();
+  // Don't create menu on startup - wait for image detection
 });
 
 chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
@@ -50,6 +66,10 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
     } else {
       console.error('No tab ID available for copy operation');
     }
+  } else if (request.action === 'createContextMenu') {
+    createContextMenu();
+  } else if (request.action === 'removeContextMenu') {
+    removeContextMenu();
   }
 });
 
