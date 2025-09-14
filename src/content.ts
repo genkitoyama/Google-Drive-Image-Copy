@@ -248,6 +248,10 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
 
       if (request.action === 'getImageUrl') {
         sendResponse({ url: lastClickedImageUrl });
+      } else if (request.action === 'showNotification') {
+        // Handle error messages from background script
+        showImprovedErrorMessage(request.message, lastClickedImageUrl || undefined);
+        sendResponse({ success: true });
       }
       return true;
     } catch (error) {
@@ -276,7 +280,7 @@ function copyImageDirectly(imageUrl: string): void {
 
   if (!targetImage) {
     console.error('Could not find image element with URL:', imageUrl);
-    showErrorMessage('画像が見つかりませんでした');
+    showImprovedErrorMessage('画像が見つかりませんでした', imageUrl);
     return;
   }
 
@@ -299,14 +303,14 @@ function copyImageDirectly(imageUrl: string): void {
         })
         .catch((error) => {
           console.log('Clipboard verification failed:', error.message);
-          // Show instructions as fallback
-          showCopyInstructions(targetImage);
+          // Show improved error message instead of instructions
+          showImprovedErrorMessage('クリップボードの確認に失敗しました', imageUrl);
         });
     })
     .catch((error) => {
       console.log('Automatic copy failed:', error.message);
-      // Highlight the image and show instructions
-      showCopyInstructions(targetImage);
+      // Show improved error message with retry option
+      showImprovedErrorMessage(error.message, imageUrl);
     });
 }
 
@@ -316,8 +320,8 @@ function showCopyInstructions(img: HTMLImageElement): void {
   const originalBorder = img.style.border;
   const originalBoxShadow = img.style.boxShadow;
 
-  img.style.border = '3px solid #4CAF50';
-  img.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
+  img.style.border = '3px solid #f44336';
+  img.style.boxShadow = '0 0 10px rgba(244, 67, 54, 0.5)';
 
   // Create instruction popup
   const popup = document.createElement('div');
@@ -327,7 +331,7 @@ function showCopyInstructions(img: HTMLImageElement): void {
     left: 50%;
     transform: translate(-50%, -50%);
     background: white;
-    border: 2px solid #4CAF50;
+    border: 2px solid #f44336;
     border-radius: 8px;
     padding: 20px;
     z-index: 999999;
@@ -338,19 +342,20 @@ function showCopyInstructions(img: HTMLImageElement): void {
   `;
 
   popup.innerHTML = `
-    <div style="margin-bottom: 15px; font-size: 18px; color: #4CAF50;">
-      ✓ 画像を選択しました
+    <div style="margin-bottom: 15px; font-size: 18px; color: #f44336;">
+      ⚠️ コピーに失敗しました
     </div>
     <div style="margin-bottom: 15px; font-size: 14px; color: #333;">
       自動コピーに失敗しました。<br>
-      緑色の枠で囲まれた画像を<br>
+      赤色の枠で囲まれた画像を<br>
       <strong>右クリック</strong> → <strong>"画像をコピー"</strong>
     </div>
     <div style="margin-bottom: 15px; font-size: 12px; color: #666; border: 1px solid #ddd; padding: 8px; border-radius: 4px; background: #f9f9f9;">
-      <strong>ヒント:</strong> Google Driveのメニューから「画像をコピー」を選択してください
+      <strong>ヒント:</strong> Google Driveのメニューから「画像をコピー」を選択してください。<br>
+      それでも失敗する場合は、画像の共有設定を「リンクを知っている全員が閲覧可」に変更してください。
     </div>
     <button id="copy-done-btn" style="
-      background: #4CAF50;
+      background: #f44336;
       color: white;
       border: none;
       padding: 8px 16px;
@@ -782,27 +787,347 @@ function showSuccessMessage(): void {
   }, 3000);
 }
 
-// Show error message
-function showErrorMessage(message: string): void {
+// Error types for better categorization
+type ErrorType = 'SHARING_PERMISSION' | 'NETWORK_ERROR' | 'CLIPBOARD_ERROR' | 'IMAGE_NOT_FOUND' | 'GENERAL_ERROR';
+
+interface ErrorInfo {
+  type: ErrorType;
+  message: string;
+  details: string;
+  solution: string;
+  canRetry: boolean;
+}
+
+// Get error type based on error message
+function getErrorType(error: string): ErrorType {
+  if (error.includes('403') || error.includes('Forbidden') || error.includes('unauthorized')) {
+    return 'SHARING_PERMISSION';
+  }
+  if (error.includes('network') || error.includes('fetch') || error.includes('HTTP')) {
+    return 'NETWORK_ERROR';
+  }
+  if (error.includes('clipboard') || error.includes('Clipboard')) {
+    return 'CLIPBOARD_ERROR';
+  }
+  if (error.includes('not found') || error.includes('見つかりません')) {
+    return 'IMAGE_NOT_FOUND';
+  }
+  return 'GENERAL_ERROR';
+}
+
+// Get detailed error information
+function getErrorInfo(errorMessage: string): ErrorInfo {
+  const errorType = getErrorType(errorMessage);
+
+  switch (errorType) {
+    case 'SHARING_PERMISSION':
+      return {
+        type: 'SHARING_PERMISSION',
+        message: '共有設定エラー',
+        details: 'この画像はプライベート設定のため、コピーできません。',
+        solution: '画像の共有設定を「リンクを知っている全員が閲覧可」に変更してください。',
+        canRetry: false
+      };
+
+    case 'NETWORK_ERROR':
+      return {
+        type: 'NETWORK_ERROR',
+        message: 'ネットワークエラー',
+        details: 'インターネット接続またはサーバーに問題があります。',
+        solution: 'ネットワーク接続を確認して、もう一度お試しください。それでも失敗する場合は、画像の共有設定を「リンクを知っている全員が閲覧可」に変更してください。',
+        canRetry: true
+      };
+
+    case 'CLIPBOARD_ERROR':
+      return {
+        type: 'CLIPBOARD_ERROR',
+        message: 'クリップボード権限エラー',
+        details: 'ブラウザのクリップボード権限が無効になっています。',
+        solution: 'chrome://settings/content/clipboard でGoogle Driveを「許可」に設定してください。また、画像の共有設定が「リンクを知っている全員が閲覧可」になっているかも確認してください。',
+        canRetry: true
+      };
+
+    case 'IMAGE_NOT_FOUND':
+      return {
+        type: 'IMAGE_NOT_FOUND',
+        message: '画像が見つかりません',
+        details: '選択された画像を読み込めませんでした。',
+        solution: 'ページを再読み込みするか、別の画像をお試しください。または、画像の共有設定を「リンクを知っている全員が閲覧可」に変更してください。',
+        canRetry: true
+      };
+
+    default:
+      return {
+        type: 'GENERAL_ERROR',
+        message: 'コピーに失敗しました',
+        details: '予期しないエラーが発生しました。',
+        solution: '手動でのコピーをお試しください。また、画像の共有設定を「リンクを知っている全員が閲覧可」に変更することで解決する場合があります。',
+        canRetry: true
+      };
+  }
+}
+
+// Show improved error message with detailed information and actions
+function showImprovedErrorMessage(errorMessage: string, imageUrl?: string): void {
+  const errorInfo = getErrorInfo(errorMessage);
+
+  // Remove any existing error popups
+  const existingError = document.querySelector('.gdrive-error-popup');
+  if (existingError) {
+    existingError.remove();
+  }
+
   const popup = document.createElement('div');
+  popup.className = 'gdrive-error-popup';
   popup.style.cssText = `
     position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #f44336;
-    color: white;
-    padding: 12px 20px;
-    border-radius: 4px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 2px solid #f44336;
+    border-radius: 12px;
+    padding: 24px;
     z-index: 999999;
-    font-size: 14px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    font-family: 'Google Sans', Roboto, Arial, sans-serif;
+    max-width: 450px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    animation: errorSlideIn 0.3s ease-out;
   `;
-  popup.textContent = message;
+
+  // Add error animation styles
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes errorSlideIn {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -60%) scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+    @keyframes errorShake {
+      0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+      25% { transform: translate(-50%, -50%) translateX(-5px); }
+      75% { transform: translate(-50%, -50%) translateX(5px); }
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Error icon based on type
+  const getErrorIcon = (type: ErrorType): string => {
+    switch (type) {
+      case 'SHARING_PERMISSION': return '🔒';
+      case 'NETWORK_ERROR': return '🌐';
+      case 'CLIPBOARD_ERROR': return '📋';
+      case 'IMAGE_NOT_FOUND': return '🖼️';
+      default: return '⚠️';
+    }
+  };
+
+  popup.innerHTML = `
+    <div style="display: flex; align-items: center; margin-bottom: 16px;">
+      <span style="font-size: 24px; margin-right: 12px;">${getErrorIcon(errorInfo.type)}</span>
+      <h3 style="margin: 0; color: #f44336; font-size: 18px;">${errorInfo.message}</h3>
+    </div>
+
+    <div style="margin-bottom: 16px; color: #5f6368; font-size: 14px; line-height: 1.5;">
+      ${errorInfo.details}
+    </div>
+
+    <div style="margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #1a73e8;">
+      <div style="font-weight: 500; color: #1a73e8; margin-bottom: 4px;">💡 解決方法:</div>
+      <div style="color: #5f6368; font-size: 13px; line-height: 1.4;">
+        ${errorInfo.solution}
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      ${errorInfo.canRetry && imageUrl ? `
+        <button id="retry-btn" style="
+          background: #1a73e8;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: background 0.2s;
+        ">もう一度試す</button>
+      ` : ''}
+
+      ${errorInfo.type === 'SHARING_PERMISSION' ? `
+        <button id="help-sharing-btn" style="
+          background: #34a853;
+          color: white;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+        ">設定方法を見る</button>
+      ` : ''}
+
+      <button id="close-error-btn" style="
+        background: #f8f9fa;
+        color: #5f6368;
+        border: 1px solid #dadce0;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.2s;
+      ">閉じる</button>
+    </div>
+  `;
+
   document.body.appendChild(popup);
 
-  setTimeout(() => {
-    popup.remove();
-  }, 3000);
+  // Add button event listeners
+  const retryBtn = popup.querySelector('#retry-btn');
+  if (retryBtn && imageUrl) {
+    retryBtn.addEventListener('click', () => {
+      popup.remove();
+      style.remove();
+      console.log('Retrying image copy:', imageUrl);
+      copyImageDirectly(imageUrl);
+    });
+
+    // Add hover effect
+    retryBtn.addEventListener('mouseenter', () => {
+      (retryBtn as HTMLElement).style.background = '#1557b0';
+    });
+    retryBtn.addEventListener('mouseleave', () => {
+      (retryBtn as HTMLElement).style.background = '#1a73e8';
+    });
+  }
+
+  const helpSharingBtn = popup.querySelector('#help-sharing-btn');
+  if (helpSharingBtn) {
+    helpSharingBtn.addEventListener('click', () => {
+      popup.remove();
+      style.remove();
+      showSharingHelpDialog();
+    });
+
+    // Add hover effect
+    helpSharingBtn.addEventListener('mouseenter', () => {
+      (helpSharingBtn as HTMLElement).style.background = '#2d8f47';
+    });
+    helpSharingBtn.addEventListener('mouseleave', () => {
+      (helpSharingBtn as HTMLElement).style.background = '#34a853';
+    });
+  }
+
+  const closeBtn = popup.querySelector('#close-error-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      popup.style.animation = 'errorSlideIn 0.2s ease-out reverse';
+      setTimeout(() => {
+        popup.remove();
+        style.remove();
+      }, 200);
+    });
+
+    // Add hover effect
+    closeBtn.addEventListener('mouseenter', () => {
+      (closeBtn as HTMLElement).style.background = '#f1f3f4';
+    });
+    closeBtn.addEventListener('mouseleave', () => {
+      (closeBtn as HTMLElement).style.background = '#f8f9fa';
+    });
+  }
+
+  // Auto-close after 10 seconds (except for sharing permission errors)
+  if (errorInfo.type !== 'SHARING_PERMISSION') {
+    setTimeout(() => {
+      if (popup.parentNode) {
+        popup.style.animation = 'errorSlideIn 0.2s ease-out reverse';
+        setTimeout(() => {
+          popup.remove();
+          style.remove();
+        }, 200);
+      }
+    }, 10000);
+  }
+}
+
+// Show sharing help dialog
+function showSharingHelpDialog(): void {
+  const helpDialog = document.createElement('div');
+  helpDialog.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 2px solid #1a73e8;
+    border-radius: 12px;
+    padding: 24px;
+    z-index: 999999;
+    font-family: 'Google Sans', Roboto, Arial, sans-serif;
+    max-width: 500px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  `;
+
+  helpDialog.innerHTML = `
+    <div style="display: flex; align-items: center; margin-bottom: 20px;">
+      <span style="font-size: 24px; margin-right: 12px;">🔧</span>
+      <h3 style="margin: 0; color: #1a73e8; font-size: 18px;">共有設定の変更方法</h3>
+    </div>
+
+    <div style="margin-bottom: 20px; color: #5f6368; font-size: 14px; line-height: 1.6;">
+      画像をコピーするには、ファイルの共有設定を変更する必要があります：
+    </div>
+
+    <ol style="color: #5f6368; font-size: 14px; line-height: 1.8; padding-left: 20px; margin-bottom: 24px;">
+      <li>Google Driveで画像ファイルを右クリック</li>
+      <li>「共有」をクリック</li>
+      <li>「制限付き」をクリック</li>
+      <li>「リンクを知っている全員」を選択</li>
+      <li>「閲覧者」権限を選択</li>
+      <li>「完了」をクリック</li>
+    </ol>
+
+    <div style="padding: 12px; background: #e8f0fe; border-radius: 8px; margin-bottom: 20px;">
+      <div style="color: #1a73e8; font-weight: 500; margin-bottom: 4px;">📍 確認方法:</div>
+      <div style="color: #5f6368; font-size: 13px;">
+        ファイル名の下に🔗アイコンまたは🌍アイコンが表示されていればOKです
+      </div>
+    </div>
+
+    <div style="text-align: right;">
+      <button id="help-close-btn" style="
+        background: #1a73e8;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+      ">理解しました</button>
+    </div>
+  `;
+
+  document.body.appendChild(helpDialog);
+
+  const closeBtn = helpDialog.querySelector('#help-close-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      helpDialog.remove();
+    });
+  }
+}
+
+// Legacy function for backward compatibility
+function showErrorMessage(message: string): void {
+  showImprovedErrorMessage(message);
 }
 
 // Clean up when page unloads
