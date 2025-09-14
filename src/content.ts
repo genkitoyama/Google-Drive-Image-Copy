@@ -49,16 +49,6 @@ function safeSendMessage(message: any): Promise<any> {
   });
 }
 
-// Add keyboard shortcut for copying (Ctrl+Shift+C or Cmd+Shift+C)
-document.addEventListener('keydown', (e: KeyboardEvent) => {
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
-    if (lastClickedImageUrl) {
-      console.log('Keyboard shortcut triggered, copying:', lastClickedImageUrl);
-      copyImageDirectly(lastClickedImageUrl);
-      e.preventDefault();
-    }
-  }
-});
 
 // Create custom context menu
 function createCustomMenu() {
@@ -112,20 +102,7 @@ function createCustomMenu() {
     copyButton.style.background = 'transparent';
   });
 
-  const separator = document.createElement('hr');
-  separator.style.cssText = 'margin: 4px 0; border: none; border-top: 1px solid #e8eaed;';
-
-  const shortcutText = document.createElement('div');
-  shortcutText.style.cssText = `
-    padding: 8px 16px;
-    font-size: 11px;
-    color: #80868b;
-  `;
-  shortcutText.textContent = 'ショートカット: Ctrl+Shift+C';
-
   menuContainer.appendChild(copyButton);
-  menuContainer.appendChild(separator);
-  menuContainer.appendChild(shortcutText);
   customMenu.appendChild(menuContainer);
 
   document.body.appendChild(customMenu);
@@ -159,6 +136,18 @@ function createCustomMenu() {
 function showCustomMenu(x: number, y: number) {
   if (!customMenu) {
     createCustomMenu();
+  }
+
+  // Reset button text to original state
+  const copyButton = customMenu?.querySelector('#copy-image-btn') as HTMLElement;
+  if (copyButton) {
+    copyButton.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      画像をコピー
+    `;
   }
 
   const menu = customMenu?.querySelector('div') as HTMLElement;
