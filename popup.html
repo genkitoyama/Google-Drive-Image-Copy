@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 15px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0 0 15px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon {
+      width: 24px;
+      height: 24px;
+      background: white;
+      border-radius: 4px;
+      padding: 2px;
+    }
+    .status {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .status-icon {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: #4CAF50;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    .instructions {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .instructions h2 {
+      font-size: 15px;
+      margin: 0 0 10px 0;
+      color: #f0f0f0;
+    }
+    .instructions ol {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .instructions li {
+      margin-bottom: 8px;
+    }
+    .footer {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      font-size: 12px;
+      text-align: center;
+      opacity: 0.8;
+    }
+    .shortcut {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="2">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+      <polyline points="21 15 16 10 5 21"></polyline>
+    </svg>
+    Google Drive Image Copy
+  </h1>
+
+  <div class="status">
+    <span class="status-icon"></span>
+    <strong>拡張機能は有効です</strong>
+  </div>
+
+  <div class="instructions">
+    <h2>使い方:</h2>
+    <ol>
+      <li>Google Driveで画像をクリック</li>
+      <li>下のボタンをクリック、または<br>
+        <span class="shortcut">Ctrl+Shift+C</span> / <span class="shortcut">Cmd+Shift+C</span></li>
+      <li>任意の場所に貼り付け（<span class="shortcut">Ctrl+V</span> / <span class="shortcut">Cmd+V</span>）</li>
+    </ol>
+  </div>
+
+  <button id="copyButton" style="
+    width: 100%;
+    padding: 12px;
+    margin: 12px 0;
+    background: white;
+    color: #667eea;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s;
+  ">
+    🖼️ 最後にクリックした画像をコピー
+  </button>
+
+  <div class="footer">
+    Version 1.0.0
+  </div>
+
+  <script src="dist/popup.js"></script>
+</body>
+</html>

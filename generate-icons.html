@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Generate Extension Icons</title>
+</head>
+<body>
+  <h1>Extension Icon Generator</h1>
+  <p>Open this file in Chrome, then right-click and save each icon:</p>
+
+  <h2>Icon 16x16</h2>
+  <canvas id="icon16" width="16" height="16"></canvas>
+
+  <h2>Icon 48x48</h2>
+  <canvas id="icon48" width="48" height="48"></canvas>
+
+  <h2>Icon 128x128</h2>
+  <canvas id="icon128" width="128" height="128"></canvas>
+
+  <script>
+    function drawIcon(canvasId, size) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+
+      // Background gradient
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#667eea');
+      gradient.addColorStop(1, '#764ba2');
+
+      // Draw rounded rectangle background
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.roundRect(0, 0, size, size, size * 0.15);
+      ctx.fill();
+
+      // Draw image icon
+      ctx.strokeStyle = 'white';
+      ctx.fillStyle = 'white';
+      ctx.lineWidth = size * 0.04;
+
+      // Image frame
+      const margin = size * 0.2;
+      const imgWidth = size * 0.6;
+      const imgHeight = size * 0.45;
+      const imgX = margin;
+      const imgY = margin;
+
+      ctx.beginPath();
+      ctx.roundRect(imgX, imgY, imgWidth, imgHeight, size * 0.03);
+      ctx.stroke();
+
+      // Mountain/landscape icon inside
+      ctx.beginPath();
+      ctx.moveTo(imgX + imgWidth * 0.1, imgY + imgHeight * 0.7);
+      ctx.lineTo(imgX + imgWidth * 0.3, imgY + imgHeight * 0.4);
+      ctx.lineTo(imgX + imgWidth * 0.5, imgY + imgHeight * 0.55);
+      ctx.lineTo(imgX + imgWidth * 0.75, imgY + imgHeight * 0.3);
+      ctx.lineTo(imgX + imgWidth * 0.9, imgY + imgHeight * 0.7);
+      ctx.stroke();
+
+      // Sun circle
+      ctx.beginPath();
+      ctx.arc(imgX + imgWidth * 0.25, imgY + imgHeight * 0.25, size * 0.04, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Copy icon (overlapping)
+      const copySize = size * 0.25;
+      const copyX = size * 0.55;
+      const copyY = size * 0.55;
+
+      // Back clipboard
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.beginPath();
+      ctx.roundRect(copyX + size * 0.03, copyY - size * 0.03, copySize, copySize * 1.2, size * 0.02);
+      ctx.fill();
+
+      // Front clipboard
+      ctx.fillStyle = 'white';
+      ctx.beginPath();
+      ctx.roundRect(copyX, copyY, copySize, copySize * 1.2, size * 0.02);
+      ctx.fill();
+
+      // Clipboard lines
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = size * 0.02;
+      const lineY = copyY + copySize * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(copyX + copySize * 0.2, lineY);
+      ctx.lineTo(copyX + copySize * 0.8, lineY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(copyX + copySize * 0.2, lineY + copySize * 0.25);
+      ctx.lineTo(copyX + copySize * 0.8, lineY + copySize * 0.25);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(copyX + copySize * 0.2, lineY + copySize * 0.5);
+      ctx.lineTo(copyX + copySize * 0.6, lineY + copySize * 0.5);
+      ctx.stroke();
+
+      // Add download link
+      canvas.style.border = '1px solid #ccc';
+      canvas.style.margin = '10px';
+      canvas.style.imageRendering = 'pixelated';
+      canvas.style.cursor = 'pointer';
+
+      canvas.onclick = function() {
+        canvas.toBlob(function(blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `icon${size}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+        });
+      };
+    }
+
+    // Draw all icons
+    drawIcon('icon16', 16);
+    drawIcon('icon48', 48);
+    drawIcon('icon128', 128);
+  </script>
+
+  <p style="margin-top: 30px;">
+    <strong>Instructions:</strong><br>
+    Click on each icon to download it. The files will be saved as icon16.png, icon48.png, and icon128.png
+  </p>
+</body>
+</html>

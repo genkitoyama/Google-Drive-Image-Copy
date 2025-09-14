@@ -1,0 +1,17 @@
+{
+  "name": "google-drive-image-copy",
+  "version": "1.0.0",
+  "description": "Copy images from Google Drive to clipboard with right-click",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.254",
+    "typescript": "^5.3.3"
+  },
+  "author": "",
+  "license": "MIT"
+}

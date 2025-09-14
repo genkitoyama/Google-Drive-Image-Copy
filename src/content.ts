@@ -1,0 +1,825 @@
+console.log('Google Drive Image Copy: Content script loaded on', window.location.href);
+
+let lastClickedImageUrl: string | null = null;
+let customMenu: HTMLElement | null = null;
+let extensionValid = true;
+
+// Check if extension context is valid
+function checkExtensionContext(): boolean {
+  try {
+    // Try to access chrome.runtime to test if context is valid
+    if (chrome.runtime && chrome.runtime.id) {
+      return true;
+    }
+  } catch (error) {
+    console.log('Extension context is invalid, stopping script');
+    extensionValid = false;
+    return false;
+  }
+  return false;
+}
+
+// Safe chrome.runtime.sendMessage with error handling
+function safeSendMessage(message: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (!checkExtensionContext()) {
+      reject(new Error('Extension context invalid'));
+      return;
+    }
+
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          const errorMessage = chrome.runtime.lastError.message || 'Unknown runtime error';
+          console.error('Runtime error:', errorMessage);
+          if (errorMessage.includes('context invalidated')) {
+            extensionValid = false;
+            window.location.reload();
+          }
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(response);
+        }
+      });
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      extensionValid = false;
+      reject(error);
+    }
+  });
+}
+
+// Add keyboard shortcut for copying (Ctrl+Shift+C or Cmd+Shift+C)
+document.addEventListener('keydown', (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+    if (lastClickedImageUrl) {
+      console.log('Keyboard shortcut triggered, copying:', lastClickedImageUrl);
+      copyImageDirectly(lastClickedImageUrl);
+      e.preventDefault();
+    }
+  }
+});
+
+// Create custom context menu
+function createCustomMenu() {
+  // Remove existing menu if any
+  if (customMenu) {
+    customMenu.remove();
+  }
+
+  customMenu = document.createElement('div');
+  customMenu.id = 'gdrive-image-copy-menu';
+  // Create menu structure without inline event handlers
+  const menuContainer = document.createElement('div');
+  menuContainer.style.cssText = `
+    position: fixed;
+    background: white;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 4px 0;
+    z-index: 999999;
+    display: none;
+    min-width: 200px;
+    font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  `;
+
+  const copyButton = document.createElement('div');
+  copyButton.id = 'copy-image-btn';
+  copyButton.style.cssText = `
+    padding: 8px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #3c4043;
+    transition: background 0.2s;
+  `;
+  copyButton.innerHTML = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+    画像をコピー
+  `;
+
+  // Add hover effects with JavaScript
+  copyButton.addEventListener('mouseenter', () => {
+    copyButton.style.background = '#f1f3f4';
+  });
+  copyButton.addEventListener('mouseleave', () => {
+    copyButton.style.background = 'transparent';
+  });
+
+  const separator = document.createElement('hr');
+  separator.style.cssText = 'margin: 4px 0; border: none; border-top: 1px solid #e8eaed;';
+
+  const shortcutText = document.createElement('div');
+  shortcutText.style.cssText = `
+    padding: 8px 16px;
+    font-size: 11px;
+    color: #80868b;
+  `;
+  shortcutText.textContent = 'ショートカット: Ctrl+Shift+C';
+
+  menuContainer.appendChild(copyButton);
+  menuContainer.appendChild(separator);
+  menuContainer.appendChild(shortcutText);
+  customMenu.appendChild(menuContainer);
+
+  document.body.appendChild(customMenu);
+
+  // Add click handler for copy button
+  copyButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    if (lastClickedImageUrl) {
+      console.log('Custom menu copy triggered:', lastClickedImageUrl);
+      // Process image copy directly in content script
+      copyImageDirectly(lastClickedImageUrl);
+
+      // Show feedback
+      copyButton.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#4CAF50">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+        </svg>
+        処理中...
+      `;
+
+      setTimeout(() => {
+        hideCustomMenu();
+      }, 500);
+    }
+  });
+
+  return customMenu;
+}
+
+function showCustomMenu(x: number, y: number) {
+  if (!customMenu) {
+    createCustomMenu();
+  }
+
+  const menu = customMenu?.querySelector('div') as HTMLElement;
+  if (menu) {
+    menu.style.display = 'block';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    // Adjust position if menu goes off screen
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      menu.style.left = `${x - rect.width}px`;
+    }
+    if (rect.bottom > window.innerHeight) {
+      menu.style.top = `${y - rect.height}px`;
+    }
+  }
+}
+
+function hideCustomMenu() {
+  const menu = customMenu?.querySelector('div') as HTMLElement;
+  if (menu) {
+    menu.style.display = 'none';
+  }
+}
+
+// Hide menu when clicking elsewhere
+document.addEventListener('click', () => {
+  hideCustomMenu();
+});
+
+document.addEventListener('contextmenu', (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  let imageUrl: string | null = null;
+
+  console.log('Right-click detected on element:', target.tagName, target.className);
+
+  // Check for direct image element
+  if (target.tagName === 'IMG') {
+    imageUrl = (target as HTMLImageElement).src;
+    console.log('Found IMG element with src:', imageUrl);
+  }
+  // Check for background images in various containers
+  else if (target.closest('[role="img"]')) {
+    const imgElement = target.closest('[role="img"]') as HTMLElement;
+    const style = window.getComputedStyle(imgElement);
+    const backgroundImage = style.backgroundImage;
+    if (backgroundImage && backgroundImage !== 'none') {
+      imageUrl = backgroundImage.slice(5, -2);
+      console.log('Found role="img" element with background:', imageUrl);
+    }
+  }
+  // Google Drive specific selectors
+  else if (target.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe')) {
+    const container = target.closest('.a-u-xb-j, .a-u-j, .a-u-xb, .Q5txwe');
+    const img = container?.querySelector('img') as HTMLImageElement | null;
+    if (img) {
+      imageUrl = img.src;
+      console.log('Found image in Drive container:', imageUrl);
+    }
+  }
+  // Check parent elements for images
+  else {
+    const parentWithImage = target.closest('div');
+    if (parentWithImage) {
+      const img = parentWithImage.querySelector('img') as HTMLImageElement | null;
+      if (img) {
+        imageUrl = img.src;
+        console.log('Found image in parent div:', imageUrl);
+      }
+    }
+  }
+
+  if (imageUrl) {
+    lastClickedImageUrl = imageUrl;
+    console.log('Sending image URL to background:', imageUrl);
+
+    // Show custom menu directly without background communication
+    showCustomMenu(e.pageX, e.pageY);
+
+    // Don't prevent default to allow Google Drive's menu to show too
+  } else {
+    console.log('No image found at click location');
+    // Try to find any visible image on the page
+    const allImages = document.querySelectorAll('img');
+    console.log(`Found ${allImages.length} images on page`);
+  }
+}, true);
+
+// Handle messages from extension with error checking
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+    try {
+      if (!extensionValid || !checkExtensionContext()) {
+        sendResponse({ error: 'Extension context invalid' });
+        return true;
+      }
+
+      if (request.action === 'getImageUrl') {
+        sendResponse({ url: lastClickedImageUrl });
+      }
+      return true;
+    } catch (error) {
+      console.error('Error handling message:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      sendResponse({ error: errorMessage });
+      return true;
+    }
+  });
+}
+
+// Direct image copy function (no background communication needed)
+function copyImageDirectly(imageUrl: string): void {
+  console.log('copyImageDirectly called with URL:', imageUrl);
+
+  // Find the image element
+  const images = document.querySelectorAll('img');
+  let targetImage: HTMLImageElement | null = null;
+
+  for (const img of images) {
+    if ((img as HTMLImageElement).src === imageUrl) {
+      targetImage = img as HTMLImageElement;
+      break;
+    }
+  }
+
+  if (!targetImage) {
+    console.error('Could not find image element with URL:', imageUrl);
+    showErrorMessage('画像が見つかりませんでした');
+    return;
+  }
+
+  console.log('Found target image element:', targetImage);
+
+  // Try automatic copy methods first
+  tryAutomaticCopy(targetImage)
+    .then(() => {
+      console.log('Automatic copy successful, verifying clipboard...');
+      // Verify clipboard contents
+      verifyClipboardContent()
+        .then((hasImage) => {
+          if (hasImage) {
+            console.log('Clipboard verification successful - image data found');
+            showSuccessMessage();
+          } else {
+            console.log('Clipboard verification failed - no image data found');
+            throw new Error('No image data in clipboard');
+          }
+        })
+        .catch((error) => {
+          console.log('Clipboard verification failed:', error.message);
+          // Show instructions as fallback
+          showCopyInstructions(targetImage);
+        });
+    })
+    .catch((error) => {
+      console.log('Automatic copy failed:', error.message);
+      // Highlight the image and show instructions
+      showCopyInstructions(targetImage);
+    });
+}
+
+// Show copy instructions
+function showCopyInstructions(img: HTMLImageElement): void {
+  // Highlight the image temporarily
+  const originalBorder = img.style.border;
+  const originalBoxShadow = img.style.boxShadow;
+
+  img.style.border = '3px solid #4CAF50';
+  img.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
+
+  // Create instruction popup
+  const popup = document.createElement('div');
+  popup.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 2px solid #4CAF50;
+    border-radius: 8px;
+    padding: 20px;
+    z-index: 999999;
+    font-family: 'Google Sans', Roboto, Arial, sans-serif;
+    text-align: center;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  `;
+
+  popup.innerHTML = `
+    <div style="margin-bottom: 15px; font-size: 18px; color: #4CAF50;">
+      ✓ 画像を選択しました
+    </div>
+    <div style="margin-bottom: 15px; font-size: 14px; color: #333;">
+      自動コピーに失敗しました。<br>
+      緑色の枠で囲まれた画像を<br>
+      <strong>右クリック</strong> → <strong>"画像をコピー"</strong>
+    </div>
+    <div style="margin-bottom: 15px; font-size: 12px; color: #666; border: 1px solid #ddd; padding: 8px; border-radius: 4px; background: #f9f9f9;">
+      <strong>ヒント:</strong> Google Driveのメニューから「画像をコピー」を選択してください
+    </div>
+    <button id="copy-done-btn" style="
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 8px;
+    ">
+      理解しました
+    </button>
+    <button id="copy-retry-btn" style="
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    ">
+      再試行
+    </button>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Handle OK button click
+  const okButton = popup.querySelector('#copy-done-btn');
+  if (okButton) {
+    okButton.addEventListener('click', () => {
+      img.style.border = originalBorder;
+      img.style.boxShadow = originalBoxShadow;
+      popup.remove();
+    });
+  }
+
+  // Handle retry button click
+  const retryButton = popup.querySelector('#copy-retry-btn');
+  if (retryButton) {
+    retryButton.addEventListener('click', () => {
+      console.log('Retrying automatic copy...');
+      tryAutomaticCopy(img)
+        .then(() => {
+          img.style.border = originalBorder;
+          img.style.boxShadow = originalBoxShadow;
+          popup.remove();
+          showSuccessMessage();
+        })
+        .catch(() => {
+          console.log('Retry failed, keeping instructions visible');
+          // Keep the popup open for another attempt
+        });
+    });
+  }
+
+  // Auto-hide after 10 seconds
+  setTimeout(() => {
+    if (popup.parentNode) {
+      img.style.border = originalBorder;
+      img.style.boxShadow = originalBoxShadow;
+      popup.remove();
+    }
+  }, 10000);
+}
+
+// Try automatic copy methods with better image handling
+function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    console.log('Trying automatic copy methods...');
+    const imageUrl = img.src;
+    console.log('Original image URL:', imageUrl);
+
+    // Method 1: Try direct fetch with modified URL
+    tryDirectImageFetch(imageUrl)
+      .then((blob) => {
+        console.log(`Direct fetch successful, got ${blob.type} blob`);
+        // Convert any image format to PNG for clipboard compatibility
+        return convertBlobToPng(blob);
+      })
+      .then((pngBlob) => {
+        console.log('Converted to PNG, copying to clipboard');
+        const item = new ClipboardItem({ 'image/png': pngBlob });
+        return navigator.clipboard.write([item]);
+      })
+      .then(() => {
+        console.log('Clipboard write successful');
+        resolve();
+      })
+      .catch((error) => {
+        console.log('Direct fetch failed:', error.message);
+
+        // Method 2: Try canvas approach with crossOrigin
+        return tryCanvasCopy(img);
+      })
+      .then(() => {
+        console.log('Canvas copy successful');
+        resolve();
+      })
+      .catch((error) => {
+        console.log('Canvas copy failed:', error.message);
+
+        // Method 3: Try creating a new image with crossOrigin
+        return tryCrossOriginCopy(imageUrl);
+      })
+      .then(() => {
+        console.log('CrossOrigin copy successful');
+        resolve();
+      })
+      .catch((error) => {
+        console.log('All copy methods failed:', error.message);
+        reject(new Error('All automatic methods failed'));
+      });
+  });
+}
+
+// Method 1: Try direct fetch with URL modifications
+function tryDirectImageFetch(originalUrl: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    // Try multiple URL variations for Google Drive images
+    const urlVariations = generateGoogleDriveUrlVariations(originalUrl);
+
+    let currentIndex = 0;
+
+    const tryNextUrl = () => {
+      if (currentIndex >= urlVariations.length) {
+        reject(new Error('All URL variations failed'));
+        return;
+      }
+
+      const url = urlVariations[currentIndex];
+      console.log(`Trying URL variation ${currentIndex + 1}/${urlVariations.length}:`, url);
+
+      fetch(url, {
+        mode: 'cors',
+        credentials: 'include'
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          if (blob.size > 0 && blob.type.startsWith('image/')) {
+            console.log('Successfully fetched image blob:', blob.size, 'bytes, type:', blob.type);
+            resolve(blob);
+          } else {
+            throw new Error('Invalid blob received');
+          }
+        })
+        .catch(error => {
+          console.log(`URL variation ${currentIndex + 1} failed:`, error.message);
+          currentIndex++;
+          setTimeout(tryNextUrl, 100);
+        });
+    };
+
+    tryNextUrl();
+  });
+}
+
+// Generate different URL variations for Google Drive images
+function generateGoogleDriveUrlVariations(url: string): string[] {
+  const variations: string[] = [];
+
+  // Extract file ID from Google Drive URL
+  const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileIdMatch) {
+    const fileId = fileIdMatch[1];
+
+    // Start with the most successful pattern first
+    variations.push(
+      `https://lh3.googleusercontent.com/d/${fileId}`, // This worked! Put it first
+      `https://drive.google.com/uc?id=${fileId}&export=view`,
+      `https://drive.google.com/uc?export=view&id=${fileId}`,
+      url.replace(/[?&]auditContext=[^&]*/, ''),
+      url.replace(/=w\d+-h\d+-iv\d+/, ''),
+      `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
+      url, // Original URL last as fallback
+      url.replace(/\?.*$/, '')
+    );
+  } else {
+    // If no file ID found, just try the original URL
+    variations.push(url);
+  }
+
+  return [...new Set(variations)]; // Remove duplicates
+}
+
+// Method 2: Canvas approach with better error handling
+function tryCanvasCopy(img: HTMLImageElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        reject(new Error('Cannot get canvas context'));
+        return;
+      }
+
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+
+      ctx.drawImage(img, 0, 0);
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Canvas toBlob failed'));
+          return;
+        }
+
+        console.log('Canvas created blob:', blob.size, 'bytes, type:', blob.type);
+
+        const item = new ClipboardItem({ [blob.type]: blob });
+        navigator.clipboard.write([item])
+          .then(() => resolve())
+          .catch((error) => reject(new Error(`Clipboard write failed: ${error.message}`)));
+      }, 'image/png', 0.95);
+
+    } catch (error) {
+      reject(new Error(`Canvas operation failed: ${error}`));
+    }
+  });
+}
+
+// Method 3: Create new image with crossOrigin
+function tryCrossOriginCopy(imageUrl: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      console.log('CrossOrigin image loaded successfully');
+      tryCanvasCopy(img)
+        .then(resolve)
+        .catch(reject);
+    };
+
+    img.onerror = () => {
+      reject(new Error('CrossOrigin image load failed'));
+    };
+
+    // Try the original URL and a modified version
+    const urlsToTry = generateGoogleDriveUrlVariations(imageUrl);
+    img.src = urlsToTry[0];
+  });
+}
+
+// Convert any image blob to PNG for clipboard compatibility
+function convertBlobToPng(blob: Blob): Promise<Blob> {
+  return new Promise((resolve) => {
+    console.log(`Converting ${blob.type} (${blob.size} bytes) to PNG...`);
+
+    // If already PNG, return as-is
+    if (blob.type === 'image/png') {
+      console.log('Already PNG, no conversion needed');
+      resolve(blob);
+      return;
+    }
+
+    // For non-PNG images, try to convert
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // Try to avoid CORS issues
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+
+    if (!ctx) {
+      console.log('Canvas context not available, trying direct blob approach');
+      // Fallback: try to use the original blob with PNG mime type
+      const pngBlob = new Blob([blob], { type: 'image/png' });
+      resolve(pngBlob);
+      return;
+    }
+
+    let objectUrl: string;
+
+    const cleanup = () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+
+    img.onload = () => {
+      try {
+        console.log(`Image loaded: ${img.naturalWidth}x${img.naturalHeight}`);
+
+        canvas.width = img.naturalWidth || img.width || 800;
+        canvas.height = img.naturalHeight || img.height || 600;
+
+        // Clear canvas with white background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw image on canvas
+        ctx.drawImage(img, 0, 0);
+
+        // Convert canvas to PNG blob
+        canvas.toBlob((pngBlob) => {
+          cleanup();
+          if (pngBlob && pngBlob.size > 0) {
+            console.log(`Successfully converted to PNG: ${pngBlob.size} bytes`);
+            resolve(pngBlob);
+          } else {
+            console.log('PNG conversion failed, trying fallback');
+            // Fallback approach
+            const fallbackBlob = new Blob([blob], { type: 'image/png' });
+            resolve(fallbackBlob);
+          }
+        }, 'image/png', 0.9);
+
+      } catch (error) {
+        cleanup();
+        console.log(`Canvas drawing failed: ${error}, using fallback`);
+        // Fallback: change mime type to PNG
+        const fallbackBlob = new Blob([blob], { type: 'image/png' });
+        resolve(fallbackBlob);
+      }
+    };
+
+    img.onerror = () => {
+      cleanup();
+      console.log('Image load failed, using fallback approach');
+      // Fallback: change mime type to PNG
+      const fallbackBlob = new Blob([blob], { type: 'image/png' });
+      resolve(fallbackBlob);
+    };
+
+    try {
+      // Create object URL from blob
+      objectUrl = URL.createObjectURL(blob);
+      img.src = objectUrl;
+
+      // Timeout fallback
+      setTimeout(() => {
+        if (!img.complete) {
+          cleanup();
+          console.log('Image load timeout, using fallback');
+          const fallbackBlob = new Blob([blob], { type: 'image/png' });
+          resolve(fallbackBlob);
+        }
+      }, 5000);
+
+    } catch (error) {
+      console.log(`Object URL creation failed: ${error}, using fallback`);
+      const fallbackBlob = new Blob([blob], { type: 'image/png' });
+      resolve(fallbackBlob);
+    }
+  });
+}
+
+// Verify that image data is actually in clipboard
+function verifyClipboardContent(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+      console.log('Clipboard read API not available');
+      resolve(false);
+      return;
+    }
+
+    navigator.clipboard.read()
+      .then((items) => {
+        console.log('Clipboard items found:', items.length);
+
+        for (const item of items) {
+          console.log('Clipboard item types:', item.types);
+
+          // Check if any item contains image data
+          const hasImageType = item.types.some(type => type.startsWith('image/'));
+          if (hasImageType) {
+            console.log('Image type found in clipboard');
+            resolve(true);
+            return;
+          }
+        }
+
+        console.log('No image types found in clipboard');
+        resolve(false);
+      })
+      .catch((error) => {
+        console.log('Clipboard read failed:', error.message);
+        // If we can't read clipboard, assume success to avoid false negatives
+        resolve(true);
+      });
+  });
+}
+
+// Show success message
+function showSuccessMessage(): void {
+  const popup = document.createElement('div');
+  popup.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #4CAF50;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 4px;
+    z-index: 999999;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    animation: slideIn 0.3s ease-out;
+  `;
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+
+  popup.textContent = '画像をクリップボードにコピーしました';
+  document.body.appendChild(popup);
+
+  setTimeout(() => {
+    popup.style.animation = 'slideIn 0.3s ease-out reverse';
+    setTimeout(() => {
+      popup.remove();
+      style.remove();
+    }, 300);
+  }, 3000);
+}
+
+// Show error message
+function showErrorMessage(message: string): void {
+  const popup = document.createElement('div');
+  popup.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #f44336;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 4px;
+    z-index: 999999;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  `;
+  popup.textContent = message;
+  document.body.appendChild(popup);
+
+  setTimeout(() => {
+    popup.remove();
+  }, 3000);
+}
+
+// Clean up when page unloads
+window.addEventListener('beforeunload', () => {
+  extensionValid = false;
+  if (customMenu) {
+    customMenu.remove();
+  }
+});
