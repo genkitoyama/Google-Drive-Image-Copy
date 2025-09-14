@@ -1,6 +1,6 @@
 let currentImageUrl: string | null = null;
 
-console.log('Google Drive Image Copy Extension: Background script loaded');
+// console.log('Google Drive Image Copy Extension: Background script loaded');
 
 // Create context menu on install and startup
 function createContextMenu() {
@@ -13,36 +13,36 @@ function createContextMenu() {
       if (chrome.runtime.lastError) {
         console.error('Context menu creation failed:', chrome.runtime.lastError);
       } else {
-        console.log('Context menu created successfully');
+        // console.log('Context menu created successfully');
       }
     });
   });
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Extension installed/updated');
+  // console.log('Extension installed/updated');
   createContextMenu();
 });
 
 // Also create on startup
 chrome.runtime.onStartup.addListener(() => {
-  console.log('Extension started');
+  // console.log('Extension started');
   createContextMenu();
 });
 
 chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
-  console.log('Background received message:', request.action, request.url);
+  // console.log('Background received message:', request.action, request.url);
 
   if (request.action === 'setImageUrl') {
     currentImageUrl = request.url;
-    console.log('Image URL stored:', currentImageUrl);
+    // console.log('Image URL stored:', currentImageUrl);
   } else if (request.action === 'copyImage' && request.url) {
     // Direct copy request from keyboard shortcut or custom menu
     if (sender.tab?.id) {
-      console.log('Direct copy request for:', request.url);
+      // console.log('Direct copy request for:', request.url);
       try {
         await copyImageToClipboard(request.url, sender.tab.id);
-        console.log('Copy operation completed successfully');
+        // console.log('Copy operation completed successfully');
       } catch (error) {
         console.error('Copy operation failed:', error);
       }
@@ -77,11 +77,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 async function copyImageToClipboard(imageUrl: string, tabId: number): Promise<void> {
-  console.log('Starting copy operation for URL:', imageUrl);
+  // console.log('Starting copy operation for URL:', imageUrl);
 
   try {
     // Use content script to fetch the image from within the page context
-    console.log('Delegating image fetch to content script...');
+    // console.log('Delegating image fetch to content script...');
 
     await chrome.scripting.executeScript({
       target: { tabId: tabId },
@@ -89,7 +89,7 @@ async function copyImageToClipboard(imageUrl: string, tabId: number): Promise<vo
       args: [imageUrl]
     });
 
-    console.log('Content script execution completed');
+    // console.log('Content script execution completed');
   } catch (error) {
     console.error('Failed to copy image:', error);
     chrome.tabs.sendMessage(tabId, {
@@ -101,7 +101,7 @@ async function copyImageToClipboard(imageUrl: string, tabId: number): Promise<vo
 
 // Self-contained function to copy image in page context
 function fetchAndCopyImageInPage(imageUrl: string): void {
-  console.log('fetchAndCopyImageInPage called with URL:', imageUrl);
+  // console.log('fetchAndCopyImageInPage called with URL:', imageUrl);
 
   // Find the image element
   const images = document.querySelectorAll('img');
@@ -140,7 +140,7 @@ function fetchAndCopyImageInPage(imageUrl: string): void {
     return;
   }
 
-  console.log('Found target image element:', targetImage);
+  // console.log('Found target image element:', targetImage);
 
   // Try selection copy first (inline)
   const trySelectionCopy = (): Promise<void> => {
@@ -293,11 +293,11 @@ function fetchAndCopyImageInPage(imageUrl: string): void {
     // Other browsers: try automatic copy first
     trySelectionCopy()
       .then(() => {
-        console.log('Selection copy successful');
+        // console.log('Selection copy successful');
         showSuccess();
       })
       .catch(() => {
-        console.log('Selection copy failed, showing instructions');
+        // console.log('Selection copy failed, showing instructions');
         showInstructions();
       });
   }

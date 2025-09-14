@@ -1,4 +1,4 @@
-console.log('Google Drive Image Copy: Content script loaded on', window.location.href);
+// console.log('Google Drive Image Copy: Content script loaded on', window.location.href);
 
 let lastClickedImageUrl: string | null = null;
 let customMenu: HTMLElement | null = null;
@@ -12,7 +12,7 @@ function checkExtensionContext(): boolean {
       return true;
     }
   } catch (error) {
-    console.log('Extension context is invalid, stopping script');
+    // console.log('Extension context is invalid, stopping script');
     extensionValid = false;
     return false;
   }
@@ -128,7 +128,7 @@ function createCustomMenu() {
     e.stopPropagation();
 
     if (lastClickedImageUrl) {
-      console.log('Custom menu copy triggered:', lastClickedImageUrl);
+      // console.log('Custom menu copy triggered:', lastClickedImageUrl);
       // Process image copy directly in content script
       copyImageDirectly(lastClickedImageUrl);
 
@@ -179,16 +179,16 @@ function showCustomMenu(x: number, y: number) {
       if (existingRect.width > 0 && existingRect.height > 0) {
         offsetX = existingRect.right + 10; // 10px gap to the right
         offsetY = existingRect.top;
-        console.log('Positioning custom menu next to existing menu');
+        // console.log('Positioning custom menu next to existing menu');
       } else {
         // If we can't detect the existing menu, use a safe offset
         offsetX = x + 150; // Standard offset to the right
-        console.log('Using standard offset for custom menu');
+        // console.log('Using standard offset for custom menu');
       }
     } else {
       // No existing menu detected, use small offset to be safe
       offsetX = x + 150;
-      console.log('No existing menu detected, using safe offset');
+      // console.log('No existing menu detected, using safe offset');
     }
 
     menu.style.display = 'block';
@@ -232,12 +232,12 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
   const target = e.target as HTMLElement;
   let imageUrl: string | null = null;
 
-  console.log('Right-click detected on element:', target.tagName, target.className);
+  // console.log('Right-click detected on element:', target.tagName, target.className);
 
   // Check for direct image element
   if (target.tagName === 'IMG') {
     imageUrl = (target as HTMLImageElement).src;
-    console.log('Found IMG element with src:', imageUrl);
+    // console.log('Found IMG element with src:', imageUrl);
   }
   // Check for background images in various containers
   else if (target.closest('[role="img"]')) {
@@ -246,7 +246,7 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
     const backgroundImage = style.backgroundImage;
     if (backgroundImage && backgroundImage !== 'none') {
       imageUrl = backgroundImage.slice(5, -2);
-      console.log('Found role="img" element with background:', imageUrl);
+      // console.log('Found role="img" element with background:', imageUrl);
     }
   }
   // Google Drive specific selectors
@@ -255,7 +255,7 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
     const img = container?.querySelector('img') as HTMLImageElement | null;
     if (img) {
       imageUrl = img.src;
-      console.log('Found image in Drive container:', imageUrl);
+      // console.log('Found image in Drive container:', imageUrl);
     }
   }
   // Check parent elements for images
@@ -265,14 +265,14 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
       const img = parentWithImage.querySelector('img') as HTMLImageElement | null;
       if (img) {
         imageUrl = img.src;
-        console.log('Found image in parent div:', imageUrl);
+        // console.log('Found image in parent div:', imageUrl);
       }
     }
   }
 
   if (imageUrl) {
     lastClickedImageUrl = imageUrl;
-    console.log('Sending image URL to background:', imageUrl);
+    // console.log('Sending image URL to background:', imageUrl);
 
     // Show custom menu with offset to avoid overlapping Google Drive's menu
     setTimeout(() => {
@@ -281,10 +281,10 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
 
     // Don't prevent default to allow Google Drive's menu to show too
   } else {
-    console.log('No image found at click location');
+    // console.log('No image found at click location');
     // Try to find any visible image on the page
-    const allImages = document.querySelectorAll('img');
-    console.log(`Found ${allImages.length} images on page`);
+    document.querySelectorAll('img');
+    // console.log(`Found ${document.querySelectorAll('img').length} images on page`);
   }
 }, true);
 
@@ -316,7 +316,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
 
 // Direct image copy function (no background communication needed)
 function copyImageDirectly(imageUrl: string): void {
-  console.log('copyImageDirectly called with URL:', imageUrl);
+  // console.log('copyImageDirectly called with URL:', imageUrl);
 
   // Find the image element
   const images = document.querySelectorAll('img');
@@ -335,31 +335,31 @@ function copyImageDirectly(imageUrl: string): void {
     return;
   }
 
-  console.log('Found target image element:', targetImage);
+  // console.log('Found target image element:', targetImage);
 
   // Try automatic copy methods first
   tryAutomaticCopy(targetImage)
     .then(() => {
-      console.log('Automatic copy successful, verifying clipboard...');
+      // console.log('Automatic copy successful, verifying clipboard...');
       // Verify clipboard contents
       verifyClipboardContent()
         .then((hasImage) => {
           if (hasImage) {
-            console.log('Clipboard verification successful - image data found');
+            // console.log('Clipboard verification successful - image data found');
             showSuccessMessage();
           } else {
-            console.log('Clipboard verification failed - no image data found');
+            // console.log('Clipboard verification failed - no image data found');
             throw new Error('No image data in clipboard');
           }
         })
-        .catch((error) => {
-          console.log('Clipboard verification failed:', error.message);
+        .catch(() => {
+          // console.log('Clipboard verification failed');
           // Show improved error message instead of instructions
           showImprovedErrorMessage('クリップボードの確認に失敗しました', imageUrl);
         });
     })
     .catch((error) => {
-      console.log('Automatic copy failed:', error.message);
+      console.error('Automatic copy failed:', error.message);
       // Show improved error message with retry option
       showImprovedErrorMessage(error.message, imageUrl);
     });
@@ -446,7 +446,7 @@ function showCopyInstructions(img: HTMLImageElement): void {
   const retryButton = popup.querySelector('#copy-retry-btn');
   if (retryButton) {
     retryButton.addEventListener('click', () => {
-      console.log('Retrying automatic copy...');
+      // console.log('Retrying automatic copy...');
       tryAutomaticCopy(img)
         .then(() => {
           img.style.border = originalBorder;
@@ -455,7 +455,7 @@ function showCopyInstructions(img: HTMLImageElement): void {
           showSuccessMessage();
         })
         .catch(() => {
-          console.log('Retry failed, keeping instructions visible');
+          // console.log('Retry failed, keeping instructions visible');
           // Keep the popup open for another attempt
         });
     });
@@ -474,9 +474,9 @@ function showCopyInstructions(img: HTMLImageElement): void {
 // Simplified automatic copy using only the working method
 function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
   return new Promise((resolve, reject) => {
-    console.log('Trying automatic copy...');
+    // console.log('Trying automatic copy...');
     const imageUrl = img.src;
-    console.log('Original image URL:', imageUrl);
+    // console.log('Original image URL:', imageUrl);
 
     // Use only the working Google Drive URL format
     const fileIdMatch = imageUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -487,7 +487,7 @@ function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
 
     const fileId = fileIdMatch[1];
     const workingUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
-    console.log('Using working URL format:', workingUrl);
+    // console.log('Using working URL format:', workingUrl);
 
     fetch(workingUrl, {
       mode: 'cors',
@@ -500,7 +500,7 @@ function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
         return response.blob();
       })
       .then((blob) => {
-        console.log(`Fetch successful, got ${blob.type} blob`);
+        // console.log(`Fetch successful, got ${blob.type} blob`);
         if (!blob || blob.size === 0) {
           throw new Error('Empty blob received');
         }
@@ -508,16 +508,17 @@ function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
         return convertBlobToPng(blob);
       })
       .then((pngBlob) => {
-        console.log('Converted to PNG, copying to clipboard');
+        // console.log('Converted to PNG, copying to clipboard');
         const item = new ClipboardItem({ 'image/png': pngBlob });
         return navigator.clipboard.write([item]);
       })
       .then(() => {
-        console.log('Clipboard write successful');
+        // console.log('Clipboard write successful');
+        console.log('Image copied to clipboard successfully');
         resolve();
       })
       .catch((error) => {
-        console.log('Copy failed:', error.message);
+        console.error('Copy failed:', error.message);
         reject(error);
       });
   });
@@ -527,11 +528,11 @@ function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
 // Convert any image blob to PNG for clipboard compatibility
 function convertBlobToPng(blob: Blob): Promise<Blob> {
   return new Promise((resolve) => {
-    console.log(`Converting ${blob.type} (${blob.size} bytes) to PNG...`);
+    // console.log(`Converting ${blob.type} (${blob.size} bytes) to PNG...`);
 
     // If already PNG, return as-is
     if (blob.type === 'image/png') {
-      console.log('Already PNG, no conversion needed');
+      // console.log('Already PNG, no conversion needed');
       resolve(blob);
       return;
     }
@@ -544,7 +545,7 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
     const ctx = canvas.getContext('2d', { willReadFrequently: false });
 
     if (!ctx) {
-      console.log('Canvas context not available, trying direct blob approach');
+      // console.log('Canvas context not available, trying direct blob approach');
       // Fallback: try to use the original blob with PNG mime type
       const pngBlob = new Blob([blob], { type: 'image/png' });
       resolve(pngBlob);
@@ -561,7 +562,7 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
 
     img.onload = () => {
       try {
-        console.log(`Image loaded: ${img.naturalWidth}x${img.naturalHeight}`);
+        // console.log(`Image loaded: ${img.naturalWidth}x${img.naturalHeight}`);
 
         canvas.width = img.naturalWidth || img.width || 800;
         canvas.height = img.naturalHeight || img.height || 600;
@@ -577,10 +578,10 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
         canvas.toBlob((pngBlob) => {
           cleanup();
           if (pngBlob && pngBlob.size > 0) {
-            console.log(`Successfully converted to PNG: ${pngBlob.size} bytes`);
+            // console.log(`Successfully converted to PNG: ${pngBlob.size} bytes`);
             resolve(pngBlob);
           } else {
-            console.log('PNG conversion failed, trying fallback');
+            // console.log('PNG conversion failed, trying fallback');
             // Fallback approach
             const fallbackBlob = new Blob([blob], { type: 'image/png' });
             resolve(fallbackBlob);
@@ -589,7 +590,7 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
 
       } catch (error) {
         cleanup();
-        console.log(`Canvas drawing failed: ${error}, using fallback`);
+        // console.log(`Canvas drawing failed: ${error}, using fallback`);
         // Fallback: change mime type to PNG
         const fallbackBlob = new Blob([blob], { type: 'image/png' });
         resolve(fallbackBlob);
@@ -598,7 +599,7 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
 
     img.onerror = () => {
       cleanup();
-      console.log('Image load failed, using fallback approach');
+      // console.log('Image load failed, using fallback approach');
       // Fallback: change mime type to PNG
       const fallbackBlob = new Blob([blob], { type: 'image/png' });
       resolve(fallbackBlob);
@@ -613,14 +614,14 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
       setTimeout(() => {
         if (!img.complete) {
           cleanup();
-          console.log('Image load timeout, using fallback');
+          // console.log('Image load timeout, using fallback');
           const fallbackBlob = new Blob([blob], { type: 'image/png' });
           resolve(fallbackBlob);
         }
       }, 5000);
 
     } catch (error) {
-      console.log(`Object URL creation failed: ${error}, using fallback`);
+      // console.log(`Object URL creation failed: ${error}, using fallback`);
       const fallbackBlob = new Blob([blob], { type: 'image/png' });
       resolve(fallbackBlob);
     }
@@ -631,32 +632,32 @@ function convertBlobToPng(blob: Blob): Promise<Blob> {
 function verifyClipboardContent(): Promise<boolean> {
   return new Promise((resolve) => {
     if (!navigator.clipboard || !navigator.clipboard.read) {
-      console.log('Clipboard read API not available');
+      // console.log('Clipboard read API not available');
       resolve(false);
       return;
     }
 
     navigator.clipboard.read()
       .then((items) => {
-        console.log('Clipboard items found:', items.length);
+        // console.log('Clipboard items found:', items.length);
 
         for (const item of items) {
-          console.log('Clipboard item types:', item.types);
+          // console.log('Clipboard item types:', item.types);
 
           // Check if any item contains image data
           const hasImageType = item.types.some(type => type.startsWith('image/'));
           if (hasImageType) {
-            console.log('Image type found in clipboard');
+            // console.log('Image type found in clipboard');
             resolve(true);
             return;
           }
         }
 
-        console.log('No image types found in clipboard');
+        // console.log('No image types found in clipboard');
         resolve(false);
       })
-      .catch((error) => {
-        console.log('Clipboard read failed:', error.message);
+      .catch(() => {
+        // console.log('Clipboard read failed:', error.message);
         // If we can't read clipboard, assume success to avoid false negatives
         resolve(true);
       });
@@ -914,7 +915,7 @@ function showImprovedErrorMessage(errorMessage: string, imageUrl?: string): void
     retryBtn.addEventListener('click', () => {
       popup.remove();
       style.remove();
-      console.log('Retrying image copy:', imageUrl);
+      // console.log('Retrying image copy:', imageUrl);
       copyImageDirectly(imageUrl);
     });
 
