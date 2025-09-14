@@ -8,9 +8,8 @@ function createContextMenu() {
     chrome.contextMenus.create({
       id: "copyGDriveImage",
       title: "画像をクリップボードにコピー",
-      contexts: ["all"],
-      documentUrlPatterns: ["https://drive.google.com/*"],
-      visible: false // Initially hidden, will be shown dynamically
+      contexts: ["image"],
+      documentUrlPatterns: ["https://drive.google.com/*"]
     }, () => {
       if (chrome.runtime.lastError) {
         console.error('Context menu creation failed:', chrome.runtime.lastError);
@@ -50,15 +49,6 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
       }
     } else {
       console.error('No tab ID available for copy operation');
-    }
-  } else if (request.action === 'updateContextMenu') {
-    // Update context menu visibility based on whether image is detected
-    try {
-      chrome.contextMenus.update("copyGDriveImage", {
-        visible: request.hasImage
-      });
-    } catch (error) {
-      console.error('Failed to update context menu:', error);
     }
   }
 });

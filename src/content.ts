@@ -270,13 +270,6 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
     }
   }
 
-  // Update context menu visibility based on whether image is detected
-  safeSendMessage({
-    action: 'updateContextMenu',
-    hasImage: !!imageUrl
-  }).catch(() => {
-    // Ignore errors for context menu updates
-  });
 
   if (imageUrl) {
     lastClickedImageUrl = imageUrl;
