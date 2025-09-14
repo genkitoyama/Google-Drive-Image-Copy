@@ -63,14 +63,15 @@ function createCustomMenu() {
   const menuContainer = document.createElement('div');
   menuContainer.style.cssText = `
     position: fixed;
-    background: white;
-    border: 1px solid #dadce0;
+    background: #1a73e8;
+    color: white;
+    border: 2px solid #1a73e8;
     border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 16px rgba(26, 115, 232, 0.3);
     padding: 4px 0;
     z-index: 999999;
     display: none;
-    min-width: 200px;
+    min-width: 220px;
     font-family: 'Google Sans', Roboto, Arial, sans-serif;
   `;
 
@@ -83,25 +84,40 @@ function createCustomMenu() {
     align-items: center;
     gap: 8px;
     font-size: 14px;
-    color: #3c4043;
+    color: white;
     transition: background 0.2s;
+    border-radius: 4px;
+    margin: 2px;
   `;
   copyButton.innerHTML = `
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
     </svg>
-    画像をコピー
+    🚀 画像をコピー
   `;
+
+  // Add a header to distinguish this menu
+  const menuHeader = document.createElement('div');
+  menuHeader.style.cssText = `
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 2px;
+  `;
+  menuHeader.textContent = '🌐 Chrome拡張機能';
 
   // Add hover effects with JavaScript
   copyButton.addEventListener('mouseenter', () => {
-    copyButton.style.background = '#f1f3f4';
+    copyButton.style.background = 'rgba(255, 255, 255, 0.2)';
   });
   copyButton.addEventListener('mouseleave', () => {
     copyButton.style.background = 'transparent';
   });
 
+  menuContainer.appendChild(menuHeader);
   menuContainer.appendChild(copyButton);
   customMenu.appendChild(menuContainer);
 
@@ -152,17 +168,50 @@ function showCustomMenu(x: number, y: number) {
 
   const menu = customMenu?.querySelector('div') as HTMLElement;
   if (menu) {
+    // Check if Google Drive's native menu exists and position accordingly
+    const existingMenu = document.querySelector('[data-menu-trigger], [role="menu"], .a-b-e');
+    let offsetX = x;
+    let offsetY = y;
+
+    if (existingMenu) {
+      const existingRect = existingMenu.getBoundingClientRect();
+      // Position our menu to the right or below the existing menu
+      if (existingRect.width > 0 && existingRect.height > 0) {
+        offsetX = existingRect.right + 10; // 10px gap to the right
+        offsetY = existingRect.top;
+        console.log('Positioning custom menu next to existing menu');
+      } else {
+        // If we can't detect the existing menu, use a safe offset
+        offsetX = x + 150; // Standard offset to the right
+        console.log('Using standard offset for custom menu');
+      }
+    } else {
+      // No existing menu detected, use small offset to be safe
+      offsetX = x + 150;
+      console.log('No existing menu detected, using safe offset');
+    }
+
     menu.style.display = 'block';
-    menu.style.left = `${x}px`;
-    menu.style.top = `${y}px`;
+    menu.style.left = `${offsetX}px`;
+    menu.style.top = `${offsetY}px`;
 
     // Adjust position if menu goes off screen
     const rect = menu.getBoundingClientRect();
     if (rect.right > window.innerWidth) {
-      menu.style.left = `${x - rect.width}px`;
+      // If right side is off-screen, try positioning to the left of original click
+      menu.style.left = `${x - rect.width - 10}px`;
     }
     if (rect.bottom > window.innerHeight) {
       menu.style.top = `${y - rect.height}px`;
+    }
+
+    // Final check - make sure it's still visible
+    const finalRect = menu.getBoundingClientRect();
+    if (finalRect.left < 0) {
+      menu.style.left = '10px';
+    }
+    if (finalRect.top < 0) {
+      menu.style.top = '10px';
     }
   }
 }
@@ -225,8 +274,10 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
     lastClickedImageUrl = imageUrl;
     console.log('Sending image URL to background:', imageUrl);
 
-    // Show custom menu directly without background communication
-    showCustomMenu(e.pageX, e.pageY);
+    // Show custom menu with offset to avoid overlapping Google Drive's menu
+    setTimeout(() => {
+      showCustomMenu(e.pageX, e.pageY);
+    }, 50); // Small delay to let Google Drive's menu appear first
 
     // Don't prevent default to allow Google Drive's menu to show too
   } else {
@@ -420,17 +471,39 @@ function showCopyInstructions(img: HTMLImageElement): void {
   }, 10000);
 }
 
-// Try automatic copy methods with better image handling
+// Simplified automatic copy using only the working method
 function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
   return new Promise((resolve, reject) => {
-    console.log('Trying automatic copy methods...');
+    console.log('Trying automatic copy...');
     const imageUrl = img.src;
     console.log('Original image URL:', imageUrl);
 
-    // Method 1: Try direct fetch with modified URL
-    tryDirectImageFetch(imageUrl)
+    // Use only the working Google Drive URL format
+    const fileIdMatch = imageUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (!fileIdMatch) {
+      reject(new Error('Could not extract Google Drive file ID'));
+      return;
+    }
+
+    const fileId = fileIdMatch[1];
+    const workingUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+    console.log('Using working URL format:', workingUrl);
+
+    fetch(workingUrl, {
+      mode: 'cors',
+      credentials: 'include'
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.blob();
+      })
       .then((blob) => {
-        console.log(`Direct fetch successful, got ${blob.type} blob`);
+        console.log(`Fetch successful, got ${blob.type} blob`);
+        if (!blob || blob.size === 0) {
+          throw new Error('Empty blob received');
+        }
         // Convert any image format to PNG for clipboard compatibility
         return convertBlobToPng(blob);
       })
@@ -444,165 +517,12 @@ function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
         resolve();
       })
       .catch((error) => {
-        console.log('Direct fetch failed:', error.message);
-
-        // Method 2: Try canvas approach with crossOrigin
-        return tryCanvasCopy(img);
-      })
-      .then(() => {
-        console.log('Canvas copy successful');
-        resolve();
-      })
-      .catch((error) => {
-        console.log('Canvas copy failed:', error.message);
-
-        // Method 3: Try creating a new image with crossOrigin
-        return tryCrossOriginCopy(imageUrl);
-      })
-      .then(() => {
-        console.log('CrossOrigin copy successful');
-        resolve();
-      })
-      .catch((error) => {
-        console.log('All copy methods failed:', error.message);
-        reject(new Error('All automatic methods failed'));
+        console.log('Copy failed:', error.message);
+        reject(error);
       });
   });
 }
 
-// Method 1: Try direct fetch with URL modifications
-function tryDirectImageFetch(originalUrl: string): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    // Try multiple URL variations for Google Drive images
-    const urlVariations = generateGoogleDriveUrlVariations(originalUrl);
-
-    let currentIndex = 0;
-
-    const tryNextUrl = () => {
-      if (currentIndex >= urlVariations.length) {
-        reject(new Error('All URL variations failed'));
-        return;
-      }
-
-      const url = urlVariations[currentIndex];
-      console.log(`Trying URL variation ${currentIndex + 1}/${urlVariations.length}:`, url);
-
-      fetch(url, {
-        mode: 'cors',
-        credentials: 'include'
-      })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-          return response.blob();
-        })
-        .then(blob => {
-          if (blob.size > 0 && blob.type.startsWith('image/')) {
-            console.log('Successfully fetched image blob:', blob.size, 'bytes, type:', blob.type);
-            resolve(blob);
-          } else {
-            throw new Error('Invalid blob received');
-          }
-        })
-        .catch(error => {
-          console.log(`URL variation ${currentIndex + 1} failed:`, error.message);
-          currentIndex++;
-          setTimeout(tryNextUrl, 100);
-        });
-    };
-
-    tryNextUrl();
-  });
-}
-
-// Generate different URL variations for Google Drive images
-function generateGoogleDriveUrlVariations(url: string): string[] {
-  const variations: string[] = [];
-
-  // Extract file ID from Google Drive URL
-  const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (fileIdMatch) {
-    const fileId = fileIdMatch[1];
-
-    // Start with the most successful pattern first
-    variations.push(
-      `https://lh3.googleusercontent.com/d/${fileId}`, // This worked! Put it first
-      `https://drive.google.com/uc?id=${fileId}&export=view`,
-      `https://drive.google.com/uc?export=view&id=${fileId}`,
-      url.replace(/[?&]auditContext=[^&]*/, ''),
-      url.replace(/=w\d+-h\d+-iv\d+/, ''),
-      `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
-      url, // Original URL last as fallback
-      url.replace(/\?.*$/, '')
-    );
-  } else {
-    // If no file ID found, just try the original URL
-    variations.push(url);
-  }
-
-  return [...new Set(variations)]; // Remove duplicates
-}
-
-// Method 2: Canvas approach with better error handling
-function tryCanvasCopy(img: HTMLImageElement): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        reject(new Error('Cannot get canvas context'));
-        return;
-      }
-
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-
-      ctx.drawImage(img, 0, 0);
-
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Canvas toBlob failed'));
-          return;
-        }
-
-        console.log('Canvas created blob:', blob.size, 'bytes, type:', blob.type);
-
-        const item = new ClipboardItem({ [blob.type]: blob });
-        navigator.clipboard.write([item])
-          .then(() => resolve())
-          .catch((error) => reject(new Error(`Clipboard write failed: ${error.message}`)));
-      }, 'image/png', 0.95);
-
-    } catch (error) {
-      reject(new Error(`Canvas operation failed: ${error}`));
-    }
-  });
-}
-
-// Method 3: Create new image with crossOrigin
-function tryCrossOriginCopy(imageUrl: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-
-    img.onload = () => {
-      console.log('CrossOrigin image loaded successfully');
-      tryCanvasCopy(img)
-        .then(resolve)
-        .catch(reject);
-    };
-
-    img.onerror = () => {
-      reject(new Error('CrossOrigin image load failed'));
-    };
-
-    // Try the original URL and a modified version
-    const urlsToTry = generateGoogleDriveUrlVariations(imageUrl);
-    img.src = urlsToTry[0];
-  });
-}
 
 // Convert any image blob to PNG for clipboard compatibility
 function convertBlobToPng(blob: Blob): Promise<Blob> {
