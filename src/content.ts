@@ -602,6 +602,10 @@ function tryAutomaticCopy(img: HTMLImageElement): Promise<void> {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!contentType.startsWith('image/')) {
+          throw new Error('レスポンスが画像ではありません');
+        }
         return response.blob();
       })
       .then((blob) => {
