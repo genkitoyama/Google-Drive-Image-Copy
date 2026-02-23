@@ -378,7 +378,7 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
   // console.log('Right-click detected on element:', target.tagName, target.className);
 
 
-  if (imageUrl) {
+  if (imageUrl && isImageFile(target)) {
     lastClickedImageUrl = imageUrl;
     // console.log('Sending image URL to background:', imageUrl);
 
@@ -389,10 +389,7 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
 
     // Don't prevent default to allow Google Drive's menu to show too
   } else {
-    // console.log('No image found at click location');
-    // Try to find any visible image on the page
-    document.querySelectorAll('img');
-    // console.log(`Found ${document.querySelectorAll('img').length} images on page`);
+    hideCustomMenu();
   }
 }, true);
 
