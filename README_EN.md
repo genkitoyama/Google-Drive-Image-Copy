@@ -13,6 +13,7 @@ A Chrome extension that allows you to copy Google Drive images to clipboard with
 - **🔄 Auto-Conversion**: Converts any image format to PNG for clipboard compatibility
 - **🛡️ CORS Bypass**: Optimized strategy to bypass Google Drive access restrictions
 - **⚡ Fast Processing**: High-speed copying using direct Clipboard API
+- **📂 Smart Detection**: Menu appears only for image files (auto-excludes Docs/Sheets/PDFs, etc.)
 - **🔍 Smart Error Handling**: Automatic error detection with appropriate solution guidance
 
 ## 🚀 Quick Start
@@ -112,6 +113,16 @@ npm run clean      # Clear build output
 - **WebP** ✅ (Auto PNG conversion)
 - **GIF** ✅ (Converted as static image)
 - **BMP** ✅ (Auto PNG conversion)
+
+## 📂 Smart File Type Detection
+
+The extension analyzes DOM attributes (`aria-label` / `data-tooltip`) to automatically determine whether the right-clicked file is an image. The menu will not appear for the following non-image files:
+
+- Google Docs / Sheets / Slides / Forms / Drawings / My Maps
+- PDF, Word, Excel, PowerPoint, CSV, Text, ZIP
+- Video (MP4, MOV, AVI) / Audio (MP3, WAV)
+
+Additionally, the server response `Content-Type` is validated, so any non-image files that bypass DOM detection are blocked before the copy process.
 
 ## 🚨 Important Limitations
 
