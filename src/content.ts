@@ -50,6 +50,49 @@ function getImageUrlFromElement(element: HTMLElement): string | null {
   return null;
 }
 
+// Check if the clicked element belongs to an actual image file (not Docs/Sheets thumbnails)
+function isImageFile(element: HTMLElement): boolean {
+  const imageExtensions = /\.(jpe?g|png|gif|bmp|webp|svg|ico|tiff?|heic|heif|avif|raw)$/i;
+  const nonImageKeywords = [
+    'Google ドキュメント', 'Google Docs',
+    'Google スプレッドシート', 'Google Sheets',
+    'Google スライド', 'Google Slides',
+    'Google フォーム', 'Google Forms',
+    'Google 図形描画', 'Google Drawings',
+    'Google マイマップ', 'Google My Maps',
+    '.pdf', '.docx', '.doc', '.xlsx', '.xls',
+    '.pptx', '.ppt', '.csv', '.txt', '.zip',
+    '.mp4', '.mov', '.avi', '.mp3', '.wav',
+  ];
+
+  // Walk up the DOM to find a file item container with tooltip or label
+  let current: HTMLElement | null = element;
+  for (let i = 0; i < 20 && current; i++) {
+    // Check both attributes — aria-label often contains the full filename
+    const tooltip = current.getAttribute('data-tooltip') || '';
+    const ariaLabel = current.getAttribute('aria-label') || '';
+
+    for (const candidate of [ariaLabel, tooltip]) {
+      if (!candidate) continue;
+
+      // If the name contains a known image extension, it's an image
+      if (imageExtensions.test(candidate)) {
+        return true;
+      }
+      // If it contains a non-image keyword, it's not an image
+      for (const keyword of nonImageKeywords) {
+        if (candidate.includes(keyword)) {
+          return false;
+        }
+      }
+    }
+    current = current.parentElement;
+  }
+
+  // Could not determine file type — default to true to preserve existing behavior
+  return true;
+}
+
 // Check if there are any images on the page
 function hasImagesOnPage(): boolean {
   // Check for direct IMG elements
