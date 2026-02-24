@@ -77,6 +77,57 @@ function checkExtensionContext(): boolean {
 }
 ```
 
+### 6. ファイル種別の自動判定
+
+**課題**: Google Driveのファイル一覧でDocs/Sheets/PDFのサムネイルも `<img>` 要素であり、`getImageUrlFromElement()` がURLを返してしまう
+
+**解決策**: `isImageFile()` ヘルパー関数によるDOM属性解析
+```typescript
+function isImageFile(element: HTMLElement): boolean {
+  // DOM階層を遡り aria-label / data-tooltip からファイル種別を判定
+  // 例: aria-label="report.pdf PDF More info (Option + →)"
+  //   → ".pdf" を検出 → false を返す
+
+  // aria-label を優先的にチェック（ファイル名情報が含まれる）
+  for (const candidate of [ariaLabel, tooltip]) {
+    if (imageExtensions.test(candidate)) return true;   // 画像拡張子
+    if (nonImageKeywords includes match) return false;   // 非画像キーワード
+  }
+  return true; // 判定不能時は既存動作を維持
+}
+```
+
+除外対象:
+- Google Docs / Sheets / Slides / Forms / 図形描画 / マイマップ
+- .pdf, .docx, .xlsx, .pptx, .csv, .txt, .zip
+- .mp4, .mov, .avi, .mp3, .wav
+
+### 7. Content-Type検証（安全ネット）
+
+**課題**: DOM判定をすり抜けた非画像ファイルがコピー処理に進む可能性
+
+**解決策**: fetchレスポンスのContent-Typeヘッダー検証
+```typescript
+const contentType = response.headers.get('Content-Type') || '';
+if (!contentType.startsWith('image/')) {
+  throw new Error('レスポンスが画像ではありません');
+}
+```
+
+### 8. カスタムメニューの確実な閉じ処理
+
+**課題**: Google Driveのネイティブメニュー項目クリック時に `stopPropagation()` でイベントが止まり、カスタムメニューが残留する
+
+**解決策**: captureフェーズでのイベント監視
+```typescript
+// captureフェーズ（第3引数 true）で監視し、stopPropagation前に検知
+document.addEventListener('mousedown', (e) => {
+  if (customMenu && !customMenu.contains(e.target as Node)) {
+    hideCustomMenu();
+  }
+}, true);
+```
+
 ## データフロー
 
 ### 成功時のフロー
@@ -84,9 +135,11 @@ function checkExtensionContext(): boolean {
 ```mermaid
 graph TD
 A[右クリック検出] --> B[画像URL抽出]
-B --> C[URL変種生成]
+B --> B2[ファイル種別判定]
+B2 --> C[URL変種生成]
 C --> D[Fetch実行]
-D --> E[JPEG→PNG変換]
+D --> D2[Content-Type検証]
+D2 --> E[JPEG→PNG変換]
 E --> F[Clipboard書き込み]
 F --> G[検証]
 G --> H[成功通知]

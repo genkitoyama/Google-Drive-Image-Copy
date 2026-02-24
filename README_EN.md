@@ -93,9 +93,10 @@ npm run clean      # Clear build output
 ### Feature Testing
 ```bash
 # After reloading the extension, test on Google Drive
-# 1. Right-click on an image
-# 2. Verify custom menu appears
-# 3. Click "🚀 Copy Image" to complete copying
+# 1. Right-click on an image file (.jpg, .png, etc.) → Menu appears, copy succeeds
+# 2. Right-click on Google Docs/Sheets → Menu does not appear (expected)
+# 3. Right-click on PDF or other non-image files → Menu does not appear (expected)
+# 4. Click a Drive menu item → Custom menu also closes
 ```
 
 ## 🎯 Browser Support
