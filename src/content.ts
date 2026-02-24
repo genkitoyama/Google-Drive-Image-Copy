@@ -63,6 +63,7 @@ function isImageFile(element: HTMLElement): boolean {
     '.pdf', '.docx', '.doc', '.xlsx', '.xls',
     '.pptx', '.ppt', '.csv', '.txt', '.zip',
     '.mp4', '.mov', '.avi', '.mp3', '.wav',
+    '.ai', '.psd', '.eps', '.indd', '.sketch', '.fig', '.xd',
   ];
 
   // Walk up the DOM to find a file item container with tooltip or label
