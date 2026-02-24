@@ -366,10 +366,17 @@ function hideCustomMenu() {
   }
 }
 
-// Hide menu when clicking elsewhere
-document.addEventListener('click', () => {
-  hideCustomMenu();
-});
+// Hide menu when clicking elsewhere (capture phase to catch events stopped by Google Drive)
+document.addEventListener('click', (e: MouseEvent) => {
+  if (customMenu && !customMenu.contains(e.target as Node)) {
+    hideCustomMenu();
+  }
+}, true);
+document.addEventListener('mousedown', (e: MouseEvent) => {
+  if (customMenu && !customMenu.contains(e.target as Node)) {
+    hideCustomMenu();
+  }
+}, true);
 
 document.addEventListener('contextmenu', (e: MouseEvent) => {
   const target = e.target as HTMLElement;
